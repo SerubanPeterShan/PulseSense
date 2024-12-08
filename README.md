@@ -8,10 +8,17 @@ PulseSense is a Go package project designed to retrieve CPU, disk, memory, and n
 
 PulseSense supports the following data sources:
 
+**Baremetal**
+
 - CPU usage
 - Disk usage
 - Memory usage
 - Process usage
+
+**Kubernetes ***(Under Learning/Devlopment)*****
+
+- Health Check
+
 
 ## Features
 
