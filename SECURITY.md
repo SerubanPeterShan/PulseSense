@@ -16,7 +16,6 @@ If you discover a security vulnerability, please follow these steps:
 
 > **Note**: Version management is currently under development. Future versions and their support status will be documented here once established.
 
-
 ## Security Updates
 
 We release patches for security vulnerabilities. Please ensure you are running the latest version.
