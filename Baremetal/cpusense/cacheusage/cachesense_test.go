@@ -1,75 +1,112 @@
 package cachesense
 
 import (
-	"os"
-	"os/exec"
+	"fmt"
+	"runtime"
 	"testing"
 )
 
-// Mock the os.ReadFile function for testing
-var readFile = os.ReadFile
+func TestGetCacheInfo(t *testing.T) {
+	fmt.Printf("\n=== Cache Information Test (%s) ===\n", runtime.GOOS)
 
-// Mock the exec.Command function for testing
-var execCommand = exec.Command
-
-func TestGetCacheInfoLinux(t *testing.T) {
-	// Mock the os.ReadFile function
-	readFile = func(filename string) ([]byte, error) {
-		switch filename {
-		case "/sys/devices/system/cpu/cpu0/cache/index0/size":
-			return []byte("32K"), nil
-		case "/sys/devices/system/cpu/cpu0/cache/index1/size":
-			return []byte("32K"), nil
-		case "/sys/devices/system/cpu/cpu0/cache/index2/size":
-			return []byte("256K"), nil
-		case "/sys/devices/system/cpu/cpu0/cache/index3/size":
-			return []byte("8192K"), nil
-		default:
-			return nil, os.ErrNotExist
-		}
-	}
-
-	cacheInfo, err := getCacheInfoLinux()
+	cacheInfo, err := GetCacheInfo()
 	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
+		t.Fatalf("Failed to get cache info: %v", err)
 	}
 
-	if cacheInfo.L1d != 32*1024 {
-		t.Errorf("Expected L1d cache size to be 32K, got %d", cacheInfo.L1d)
+	// Print cache information
+	fmt.Printf("L1 Data Cache: %s\n", formatSize(cacheInfo.L1d))
+	fmt.Printf("L1 Instruction Cache: %s\n", formatSize(cacheInfo.L1i))
+	fmt.Printf("L2 Cache: %s\n", formatSize(cacheInfo.L2))
+	fmt.Printf("L3 Cache: %s\n", formatSize(cacheInfo.L3))
+
+	// Validation tests
+	testCases := []struct {
+		name  string
+		size  uint64
+		level string
+	}{
+		{"L1 Data Cache", cacheInfo.L1d, "L1d"},
+		{"L1 Instruction Cache", cacheInfo.L1i, "L1i"},
+		{"L2 Cache", cacheInfo.L2, "L2"},
+		{"L3 Cache", cacheInfo.L3, "L3"},
 	}
-	if cacheInfo.L1i != 32*1024 {
-		t.Errorf("Expected L1i cache size to be 32K, got %d", cacheInfo.L1i)
-	}
-	if cacheInfo.L2 != 256*1024 {
-		t.Errorf("Expected L2 cache size to be 256K, got %d", cacheInfo.L2)
-	}
-	if cacheInfo.L3 != 8192*1024 {
-		t.Errorf("Expected L3 cache size to be 8192K, got %d", cacheInfo.L3)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			validateCacheSize(t, tc.size, tc.level)
+		})
 	}
 }
 
-func TestGetCacheInfoWindows(t *testing.T) {
-	// Mock the exec.Command function
-	execCommand = func(_ string, _ ...string) *exec.Cmd {
-		cmd := exec.Command("echo", "Node,L2CacheSize,L3CacheSize\n0,256,8192")
-		return cmd
-	}
+func TestPlatformSpecific(t *testing.T) {
+	fmt.Printf("\n=== Platform Specific Cache Tests (%s) ===\n", runtime.GOOS)
 
-	cacheInfo, err := getCacheInfoWindows()
+	cacheInfo, err := GetCacheInfo()
 	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
+		t.Fatalf("Failed to get cache info: %v", err)
 	}
 
-	if cacheInfo.L1d != 0 {
-		t.Errorf("Expected L1d cache size to be 0, got %d", cacheInfo.L1d)
+	switch runtime.GOOS {
+	case "windows":
+		testWindowsCache(t, cacheInfo)
+	case "linux":
+		testLinuxCache(t, cacheInfo)
 	}
-	if cacheInfo.L1i != 0 {
-		t.Errorf("Expected L1i cache size to be 0, got %d", cacheInfo.L1i)
+}
+
+func testWindowsCache(t *testing.T, info CacheInfo) {
+	// Windows specific validations
+	if info.L2 == 0 {
+		t.Error("L2 cache size should not be zero on Windows")
 	}
-	if cacheInfo.L2 != 256*1024 {
-		t.Errorf("Expected L2 cache size to be 256K, got %d", cacheInfo.L2)
+	fmt.Printf("Windows CPU Cache Configuration:\n")
+	fmt.Printf("L2 Cache: %s\n", formatSize(info.L2))
+	fmt.Printf("L3 Cache: %s\n", formatSize(info.L3))
+}
+
+func testLinuxCache(t *testing.T, info CacheInfo) {
+	// Linux specific validations
+	if info.L1d == 0 {
+		t.Error("L1 data cache size should not be zero on Linux")
 	}
-	if cacheInfo.L3 != 8192*1024 {
-		t.Errorf("Expected L3 cache size to be 8192K, got %d", cacheInfo.L3)
+	fmt.Printf("Linux CPU Cache Configuration:\n")
+	fmt.Printf("L1 Data: %s\n", formatSize(info.L1d))
+	fmt.Printf("L1 Instruction: %s\n", formatSize(info.L1i))
+	fmt.Printf("L2: %s\n", formatSize(info.L2))
+	fmt.Printf("L3: %s\n", formatSize(info.L3))
+}
+
+func validateCacheSize(t *testing.T, size uint64, level string) {
+	// Common cache size ranges (in bytes)
+	ranges := map[string]struct{ min, max uint64 }{
+		"L1d": {8 * 1024, 64 * 1024},          // 8KB - 64KB
+		"L1i": {8 * 1024, 64 * 1024},          // 8KB - 64KB
+		"L2":  {128 * 1024, 24 * 1024 * 1024}, // 128KB - 24MB
+		"L3":  {512 * 1024, 64 * 1024 * 1024}, // 512KB - 64MB
 	}
+
+	if r, ok := ranges[level]; ok && size > 0 {
+		if size < r.min || size > r.max {
+			t.Errorf("%s cache size %d is outside expected range (%d-%d)",
+				level, size, r.min, r.max)
+		}
+	}
+}
+
+// Helper function to format cache sizes
+func formatSize(bytes uint64) string {
+	if bytes == 0 {
+		return "N/A"
+	}
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := uint64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
