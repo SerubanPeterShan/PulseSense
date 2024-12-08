@@ -44,3 +44,13 @@ func main() {
 ```
 
 ## Documentation
+
+For detailed documentation, please refer to the [PulseSense Wiki](https://github.com/SerubanPeterShan/PulseSense/wiki).
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](https://github.com/SerubanPeterShan/PulseSense/blob/master/LICENSE.md) file for details.
+
+## Contact
+
+For any questions or feedback, please open an issue on the [GitHub repository](https://github.com/SerubanPeterShan/PulseSense/issues).
