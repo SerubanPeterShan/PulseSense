@@ -1,0 +1,45 @@
+# .github/ISSUE_TEMPLATE/security_issue.yml
+name: Security Issue
+description: Report a security vulnerability
+title: "[SECURITY] "
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a security vulnerability.
+        Please fill out the information below carefully.
+
+  - type: input
+    id: affected-versions
+    attributes:
+      label: Affected Versions
+      description: What versions of the project are affected?
+      placeholder: "e.g. v1.0.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Vulnerability Description
+      description: Describe the security issue in detail
+      placeholder: Provide clear steps to reproduce the vulnerability
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Potential Impact
+      description: What's the potential impact of this vulnerability?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: If you have any suggested fixes or mitigations
+    validations:
+      required: false
