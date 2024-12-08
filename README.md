@@ -11,6 +11,7 @@ PulseSense supports the following data sources:
 - CPU usage
 - Disk usage
 - Memory usage
+- Process usage
 
 ## Features
 
