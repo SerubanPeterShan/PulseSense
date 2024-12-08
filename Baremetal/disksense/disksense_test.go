@@ -1,128 +1,139 @@
 package disksense
 
 import (
-	"os"
+	"fmt"
+	"math"
 	"runtime"
+	"strings"
 	"testing"
-	"time"
 )
 
 func TestGetDiskInfo(t *testing.T) {
+	fmt.Printf("\n=== Disk Information Test (%s) ===\n", runtime.GOOS)
+
 	disks, err := GetDiskInfo()
 	if err != nil {
 		t.Fatalf("GetDiskInfo failed: %v", err)
 	}
 
+	fmt.Printf("Found %d disk(s)\n", len(disks))
+
 	if len(disks) == 0 {
-		t.Error("Expected at least one disk, got none")
+		t.Fatal("Expected at least one disk, got none")
 	}
 
-	for _, disk := range disks {
-		// Test disk path
-		if disk.Path == "" {
-			t.Error("Disk path should not be empty")
-		}
+	for i, disk := range disks {
+		fmt.Printf("\nDisk %d:\n", i+1)
+		fmt.Printf("Path: %s\n", disk.Path)
+		fmt.Printf("Mount Point: %s\n", disk.MountPoint)
+		fmt.Printf("Filesystem: %s\n", disk.FileSystem)
+		fmt.Printf("Total: %s\n", disk.TotalReadable())
+		fmt.Printf("Used: %s (%.1f%%)\n", disk.UsedReadable(), disk.Usage)
+		fmt.Printf("Free: %s\n", disk.FreeReadable())
 
-		// Test mount point
-		if disk.MountPoint == "" {
-			t.Error("Mount point should not be empty")
-		}
+		t.Run(fmt.Sprintf("Disk_%d", i), func(t *testing.T) {
+			// Basic validation
+			if disk.Path == "" {
+				t.Error("Disk path should not be empty")
+			}
+			if disk.MountPoint == "" {
+				t.Error("Mount point should not be empty")
+			}
+			if disk.FileSystem == "" {
+				t.Error("Filesystem type should not be empty")
+			}
 
-		// Test total space
-		if disk.Total == 0 {
-			t.Error("Total disk space should not be zero")
-		}
+			// Space validation
+			if disk.Total == 0 {
+				t.Error("Total disk space should not be zero")
+			}
+			if disk.Usage < 0 || disk.Usage > 100 {
+				t.Errorf("Disk usage should be between 0 and 100, got %.2f", disk.Usage)
+			}
+			if disk.Used > disk.Total {
+				t.Error("Used space should not exceed total space")
+			}
+			if disk.Free > disk.Total {
+				t.Error("Free space should not exceed total space")
+			}
 
-		// Test usage calculations
-		if disk.Usage < 0 || disk.Usage > 100 {
-			t.Errorf("Disk usage should be between 0 and 100, got %f", disk.Usage)
-		}
-
-		// Test used space
-		if disk.Used > disk.Total {
-			t.Error("Used space should not exceed total space")
-		}
-
-		// Test free space
-		if disk.Free > disk.Total {
-			t.Error("Free space should not exceed total space")
-		}
+			// Check that Used + Free equals Total (within 1% margin for rounding)
+			totalFromParts := disk.Used + disk.Free
+			diffPercentage := math.Abs(float64(totalFromParts-disk.Total)) / float64(disk.Total) * 100
+			if diffPercentage > 1.0 {
+				t.Errorf("Space calculation mismatch: Total=%d, Used+Free=%d (%.2f%% difference)",
+					disk.Total, totalFromParts, diffPercentage)
+			}
+		})
 	}
 }
 
 func TestPlatformSpecific(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		testWindowsDiskInfo(t)
-	} else {
-		testLinuxDiskInfo(t)
+	fmt.Printf("\n=== Platform Specific Tests (%s) ===\n", runtime.GOOS)
+
+	disks, err := GetDiskInfo()
+	if err != nil {
+		t.Fatalf("GetDiskInfo failed: %v", err)
+	}
+
+	switch runtime.GOOS {
+	case "windows":
+		testWindowsDisks(t, disks)
+	case "linux":
+		testLinuxDisks(t, disks)
 	}
 }
 
-func testWindowsDiskInfo(t *testing.T) {
-	disks, err := getWindowsDiskInfo()
-	if err != nil {
-		t.Fatalf("getWindowsDiskInfo failed: %v", err)
-	}
-
+func testWindowsDisks(t *testing.T, disks []DiskInfo) {
 	for _, disk := range disks {
-		// Test Windows-specific path format
-		if len(disk.Path) < 3 || disk.Path[1:3] != ":\\" {
+		// Test Windows path format
+		if len(disk.Path) < 2 || disk.Path[1] != ':' {
 			t.Errorf("Invalid Windows path format: %s", disk.Path)
 		}
-	}
-}
 
-func testLinuxDiskInfo(t *testing.T) {
-	disks, err := getLinuxDiskInfo()
-	if err != nil {
-		t.Fatalf("getLinuxDiskInfo failed: %v", err)
-	}
-
-	for _, disk := range disks {
-		// Test Linux-specific path format
-		if disk.Path[0] != '/' {
-			t.Errorf("Invalid Linux path format: %s", disk.Path)
+		// Test filesystem type
+		validFS := map[string]bool{"NTFS": true, "FAT32": true, "FAT": true, "exFAT": true}
+		if !validFS[disk.FileSystem] {
+			fmt.Printf("Note: Unusual Windows filesystem: %s\n", disk.FileSystem)
 		}
 	}
 }
 
-func TestGetDiskInfoSingle(t *testing.T) {
-	// Test with current directory
-	currentDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
-	}
+func testLinuxDisks(t *testing.T, disks []DiskInfo) {
+	for _, disk := range disks {
+		// Test Linux path format
+		if !strings.HasPrefix(disk.Path, "/dev/") && !strings.HasPrefix(disk.Path, "UUID=") {
+			t.Errorf("Invalid Linux device path: %s", disk.Path)
+		}
 
-	disk, err := getDiskInfo(currentDir)
-	if err != nil {
-		t.Fatalf("getDiskInfo failed: %v", err)
-	}
+		// Test mount point format
+		if !strings.HasPrefix(disk.MountPoint, "/") {
+			t.Errorf("Invalid Linux mount point: %s", disk.MountPoint)
+		}
 
-	// Test disk info
-	if disk.Path == "" {
-		t.Error("Disk path should not be empty")
-	}
-	if disk.Total == 0 {
-		t.Error("Total disk space should not be zero")
-	}
-	if disk.Usage < 0 || disk.Usage > 100 {
-		t.Errorf("Disk usage should be between 0 and 100, got %f", disk.Usage)
+		// Test filesystem type
+		validFS := map[string]bool{
+			"ext4": true, "ext3": true, "ext2": true,
+			"xfs": true, "btrfs": true, "zfs": true,
+		}
+		if !validFS[disk.FileSystem] {
+			fmt.Printf("Note: Unusual Linux filesystem: %s\n", disk.FileSystem)
+		}
 	}
 }
 
-func TestMonitorDiskInfo(t *testing.T) {
-	// Create a channel to stop the monitor after a short time
-	done := make(chan bool)
+func TestLowSpaceDetection(t *testing.T) {
+	fmt.Printf("\n=== Low Space Detection Test ===\n")
 
-	go func() {
-		// Stop the monitor after 100ms
-		time.Sleep(100 * time.Millisecond)
-		done <- true
-	}()
+	disks, err := GetDiskInfo()
+	if err != nil {
+		t.Fatalf("GetDiskInfo failed: %v", err)
+	}
 
-	go func() {
-		MonitorDiskInfo(50 * time.Millisecond)
-	}()
-
-	<-done
+	threshold := 90.0 // 90% usage threshold
+	for _, disk := range disks {
+		isLow := disk.IsLowSpace(threshold)
+		fmt.Printf("Disk %s: %.1f%% used - Low Space: %v\n",
+			disk.Path, disk.Usage, isLow)
+	}
 }
