@@ -4,17 +4,18 @@
 
 If you discover a security vulnerability, please follow these steps:
 
-1. **Do NOT** open a public GitHub issue
-2. Please Mention in Issue tab
-3. Include detailed information about the vulnerability
-4. Allow up to 48 hours for initial response
+1. **Do** open a public GitHub issue
+2. Include detailed information about the vulnerability
+3. Allow up to 48 hours for initial response
 
 ## Supported Versions
 
 | Version | Supported          |
-| ------- | ------------------ |
-| x.x.x   | :white_check_mark: |
-| < x.x   | :x:                |
+|---------|-------------------|
+| Development | :white_check_mark: |
+
+> **Note**: Version management is currently under development. Future versions and their support status will be documented here once established.
+
 
 ## Security Updates
 
