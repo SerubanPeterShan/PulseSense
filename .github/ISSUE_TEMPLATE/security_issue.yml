@@ -1,5 +1,5 @@
 # .github/ISSUE_TEMPLATE/security_issue.yml
-name: Security Issue
+name: Security Vulnerability Report
 description: Report a security vulnerability
 title: "[SECURITY] "
 labels: ["security"]
